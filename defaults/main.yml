@@ -1,7 +1,5 @@
 ---
-# Database administrator credentials
 db_admin_username: postgres
-db_admin_password: "postgres_password"
 
 # Netbox database credentials
 netbox_db_username: netbox
@@ -18,8 +16,9 @@ netbox_fqdn: localhost
 netbox_secret_key: "aOpdppS%P0XWXCdrMK-Fn_%dl_naCOo+@FS&aou&w#We*B0drZ"
 
 # Admin user
-netbox_admin_name: "First Last"
-netbox_admin_email: "first.last@example.com"
+netbox_admin_name: "admin"
+netbox_admin_email: "admin@localhost"
+netbox_admin_password: "very_secure"
 
 # Network device login
 netbox_user: tacacs_user

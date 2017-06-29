@@ -1,0 +1,85 @@
+- name: Install netbox dependencies
+  apt: pkg={{ item }} state=present
+  with_items:
+    - libpq-dev 
+    - python-psycopg2
+    - git
+    - python-pip
+    - python-dev
+    - libxml2-dev 
+    - libxslt1-dev 
+    - libffi-dev 
+    - graphviz
+    - gunicorn
+    - supervisor
+    - libssl-dev
+    - expect-lite
+
+- name: Clone netbox git repository
+  git: repo=https://github.com/digitalocean/netbox.git
+       dest=/opt/netbox
+       version=master
+
+- name: Upgrade pip
+  pip: name=pip state=latest
+
+- name: Install pip dependencies
+  pip: requirements=/opt/netbox/requirements.txt
+
+- name: Create database user for netbox
+  become_user: "{{ db_admin_username }}"
+  postgresql_user:
+    name: "{{ netbox_db_username }}"
+    password: "{{ netbox_db_password }}" 
+    state: present
+
+- name: Create database for netbox
+  become_user: "{{ db_admin_username }}"
+  postgresql_db:
+    name: "{{ netbox_db_database }}"
+    owner: "{{ netbox_db_username }}"
+    state: present
+
+- name: Configure netbox
+  template:
+    src: roles/netbox/templates/configuration.py.j2
+    dest: /opt/netbox/netbox/netbox/configuration.py
+
+- name: Run migrations
+  command: /opt/netbox/netbox/manage.py migrate
+
+- name: Configure gunicorn
+  copy:
+    src: roles/netbox/files/gunicorn_config.py
+    dest: /opt/netbox/gunicorn_config.py
+  notify: restart supervisor
+
+- name: Configure supervisord
+  copy:
+    src: roles/netbox/files/netbox.conf
+    dest: /etc/supervisor/conf.d/netbox.conf
+  notify: restart supervisor
+
+- name: Enable supervisord
+  service:
+    name: supervisor.service
+    enabled: yes
+
+- name: Create superuser
+  shell: |
+    spawn /opt/netbox/netbox/manage.py createsuperuser --username {{ netbox_admin_name }} --email {{ netbox_admin_email }}
+    expect "Password"
+    send "{{ netbox_admin_password }}\r"
+    expect "Password"
+    send "{{ netbox_admin_password }}\r"
+    expect "Superuser created successfully."
+    exec /bin/touch /opt/netbox/.superuser_created
+    interact
+  args:
+    executable: /usr/bin/expect
+    creates: /opt/netbox/.superuser_created
+
+- name: Copy static content
+  shell: /opt/netbox/netbox/manage.py collectstatic
+  args:
+    creates: /opt/netbox/netbox/static/img/netbox_logo.png
